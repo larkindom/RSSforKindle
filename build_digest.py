@@ -449,7 +449,9 @@ def send_to_kindle(epub_path: str, digest_title: str) -> None:
         server.starttls()
         server.login(user, password)
         server.send_message(msg)
-    log(f"emailed digest to {kindle}")
+    # Mask the address so it isn't exposed in this public repo's Action logs.
+    masked = re.sub(r"^(.).*(@.*)$", r"\1***\2", kindle)
+    log(f"emailed digest to {masked}")
 
 
 # ──────────────────────────────── main ─────────────────────────────────────
