@@ -2,10 +2,11 @@ name: Morning Kindle Digest
 
 on:
   schedule:
-    # GitHub cron is UTC. 11:00 UTC = 7:00 AM America/New_York (EDT).
-    # Adjust the hour if you want a different delivery time or are on EST.
-    - cron: "0 11 * * *"
-  workflow_dispatch: {}   # lets you run it manually from the Actions tab
+    # GitHub cron is UTC and does NOT follow daylight saving, so we fire at both
+    # candidate times and let the job below run only when it's truly 7 AM Eastern:
+    - cron: "0 11 * * *"   # 11:00 UTC = 7:00 AM Eastern during EDT (summer)
+    - cron: "0 12 * * *"   # 12:00 UTC = 7:00 AM Eastern during EST (winter)
+  workflow_dispatch: {}    # also run on demand from the Actions tab
 
 jobs:
   build-and-send:
@@ -19,10 +20,31 @@ jobs:
           python-version: "3.12"
           cache: pip
 
+      # Run on manual dispatch always; on a schedule, only when New York local
+      # time is 07:xx — so exactly one of the two cron triggers proceeds each day,
+      # giving a stable 7 AM Eastern regardless of daylight saving.
+      - name: Gate to 7 AM Eastern (DST-safe)
+        id: gate
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            HOUR=$(TZ=America/New_York date +%H)
+            echo "New York hour is $HOUR"
+            if [ "$HOUR" = "07" ]; then
+              echo "run=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "run=false (not 7 AM Eastern — skipping this trigger)"
+              echo "run=false" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
       - name: Install dependencies
+        if: steps.gate.outputs.run == 'true'
         run: pip install -r requirements.txt
 
       - name: Build and send digest
+        if: steps.gate.outputs.run == 'true'
         # Fail quietly: a transient hiccup (a source down, an SMTP blip) won't
         # mark the run red or email you at 7 AM. Problems still show in the log,
         # so if a digest doesn't arrive, glance at the Actions tab.
@@ -37,7 +59,7 @@ jobs:
         run: python build_digest.py --config config.yaml --out digest.epub --send
 
       - name: Upload digest as artifact (backup / debugging)
-        if: always()
+        if: steps.gate.outputs.run == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: digest-epub
