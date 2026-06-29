@@ -40,21 +40,22 @@ digest:
   min_content_chars: 600
 
 sources:
-  # NPR — free, full text on-site, so we fetch directly (no archive needed).
+  # AP News — no public RSS anymore, so we scrape the Top News hub for article
+  # links (free, full text extracts cleanly).
+  - name: AP News
+    index: https://apnews.com/hub/ap-top-news
+    link_selector: "h3.PagePromo-title a"
+    max_articles: 12
+
+  # NPR — official RSS, free full text on-site.
   - name: NPR News
     feed: https://feeds.npr.org/1001/rss.xml
     max_articles: 12
 
-  # The New Yorker — paywalled, so route every article through archive.today.
-  # /feed/everything is broad (also crosswords/podcasts); narrow to /feed/news
-  # or /feed/magazine later if you want fewer, more focused pieces.
-  - name: The New Yorker
-    feed: https://www.newyorker.com/feed/everything
-    archive: always
-    max_articles: 8
-
-  # The New York Times — paywalled, route through archive.today.
-  - name: The New York Times
-    feed: https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml
-    archive: always
-    max_articles: 10
+  # Reuters slot: Reuters has no free full-text path for automation (no RSS +
+  # bot-blocks scrapers). The Guardian is the closest free substitute — official
+  # RSS, full article text, international wire-style coverage. Uncomment to
+  # enable it (or swap the feed for BBC: https://feeds.bbci.co.uk/news/world/rss.xml).
+  # - name: The Guardian (World)
+  #   feed: https://www.theguardian.com/world/rss
+  #   max_articles: 10
