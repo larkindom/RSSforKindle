@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
-import hashlib
 import html
 import os
 import re
@@ -349,11 +348,15 @@ def collect_from_index(src: dict) -> list[dict]:
 def build_epub(digest_cfg: dict, sections: list[dict], out_path: str) -> None:
     tz = ZoneInfo(digest_cfg.get("timezone", "UTC"))
     today = dt.datetime.now(tz).strftime("%A, %B %-d, %Y")
-    title = f"{digest_cfg.get('title', 'Morning Digest')} — {today}"
+    base_title = digest_cfg.get("title", "Morning Digest")
 
     book = epub.EpubBook()
-    book.set_identifier(hashlib.md5(title.encode()).hexdigest())
-    book.set_title(title)
+    # Stable identifier + constant title so each morning's delivery is treated as
+    # an UPDATE to the same Kindle document (replacing yesterday's) instead of a
+    # brand-new library entry. The date is shown on the cover page inside, so you
+    # can still tell which issue you're reading. This keeps the Library tidy.
+    book.set_identifier("kindle-morning-digest")
+    book.set_title(base_title)
     book.set_language("en")
     book.add_author("Kindle Digest")
 
@@ -370,9 +373,19 @@ def build_epub(digest_cfg: dict, sections: list[dict], out_path: str) -> None:
     )
     book.add_item(css)
 
+    # Cover page showing the issue date (the document title itself stays
+    # constant for the in-place-update behavior described above).
+    cover = epub.EpubHtml(title=base_title, file_name="cover.xhtml", lang="en")
+    cover.content = (
+        f"<h1>{html.escape(base_title)}</h1>"
+        f"<p class='src'>{html.escape(today)}</p>"
+    )
+    cover.add_item(css)
+    book.add_item(cover)
+
     chapters: list[epub.EpubHtml] = []
     toc_sections: list = []
-    spine: list = ["nav"]
+    spine: list = ["nav", cover]
 
     for s_idx, section in enumerate(sections):
         section_chapters: list[epub.EpubHtml] = []
@@ -492,9 +505,9 @@ def main() -> int:
     build_epub(digest_cfg, sections, args.out)
 
     if args.send:
-        tz = ZoneInfo(digest_cfg.get("timezone", "UTC"))
-        today = dt.datetime.now(tz).strftime("%A, %B %-d, %Y")
-        send_to_kindle(args.out, f"{digest_cfg.get('title', 'Morning Digest')} — {today}")
+        # Constant subject (and the constant filename used in send_to_kindle)
+        # so Send-to-Kindle updates the same document instead of piling up.
+        send_to_kindle(args.out, digest_cfg.get("title", "Morning Digest"))
 
     return 0
 
