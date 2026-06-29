@@ -347,8 +347,8 @@ def collect_from_index(src: dict) -> list[dict]:
 
 def build_epub(digest_cfg: dict, sections: list[dict], out_path: str) -> None:
     tz = ZoneInfo(digest_cfg.get("timezone", "UTC"))
-    today = dt.datetime.now(tz).strftime("%A, %B %-d, %Y")
-    base_title = digest_cfg.get("title", "Morning Digest")
+    date_mdy = dt.datetime.now(tz).strftime("%m/%d/%Y")
+    base_title = digest_cfg.get("title", "News Digest")
 
     book = epub.EpubBook()
     # Stable identifier + constant title so each morning's delivery is treated as
@@ -375,10 +375,11 @@ def build_epub(digest_cfg: dict, sections: list[dict], out_path: str) -> None:
 
     # Cover page showing the issue date (the document title itself stays
     # constant for the in-place-update behavior described above).
-    cover = epub.EpubHtml(title=base_title, file_name="cover.xhtml", lang="en")
+    cover_title = f"{base_title} - {date_mdy}"
+    cover = epub.EpubHtml(title=cover_title, file_name="cover.xhtml", lang="en")
     cover.content = (
         f"<h1>{html.escape(base_title)}</h1>"
-        f"<p class='src'>{html.escape(today)}</p>"
+        f"<p class='src'>{html.escape(date_mdy)}</p>"
     )
     cover.add_item(css)
     book.add_item(cover)
@@ -393,14 +394,18 @@ def build_epub(digest_cfg: dict, sections: list[dict], out_path: str) -> None:
             fname = f"s{s_idx}_a{a_idx}.xhtml"
             pub = art.get("published")
             pub_str = pub.astimezone(tz).strftime("%b %-d, %-I:%M %p") if pub else ""
+            source = art.get("source", "")
             body = (
-                f"<h1>{html.escape(art['title'])}</h1>"
-                f"<p class='src'>{html.escape(section['name'])}"
+                f"<h1>{html.escape(art['title'])} ({html.escape(source)})</h1>"
+                f"<p class='src'>{html.escape(source)}"
                 f"{' · ' + pub_str if pub_str else ''} · "
                 f"<a href='{html.escape(art['link'])}'>source</a></p>"
                 f"{art['content']}"
             )
-            ch = epub.EpubHtml(title=art["title"], file_name=fname, lang="en")
+            # Source in parentheses in the navigation entry too, so you can see
+            # where each story comes from while browsing the table of contents.
+            ch_title = f"{art['title']} ({source})" if source else art["title"]
+            ch = epub.EpubHtml(title=ch_title, file_name=fname, lang="en")
             ch.content = body
             ch.add_item(css)
             book.add_item(ch)
@@ -454,6 +459,89 @@ def send_to_kindle(epub_path: str, digest_title: str) -> None:
     log(f"emailed digest to {masked}")
 
 
+# ─────────────────────────── theme grouping ────────────────────────────────
+# Ordered, first-match-wins buckets. Stories are sorted by matching whole words
+# in the headline against each theme's keywords. Tune these lists freely — order
+# matters (earlier themes win ties). Anything unmatched lands in DEFAULT_THEME.
+
+THEMES: list[tuple[str, list[str]]] = [
+    ("Conflict & Foreign Affairs", [
+        "iran", "israel", "israeli", "gaza", "hamas", "hezbollah", "ukraine",
+        "russia", "russian", "syria", "war", "military", "airstrike", "airstrikes",
+        "missile", "troops", "ceasefire", "nato", "nuclear", "sanctions",
+        "hostage", "border",
+    ]),
+    ("U.S. Politics", [
+        "trump", "biden", "white house", "congress", "senate", "democrat",
+        "democrats", "republican", "republicans", "gop", "supreme court",
+        "election", "campaign", "governor", "federal", "administration",
+        "lawmakers", "ice", "deportation",
+    ]),
+    ("Business & Economy", [
+        "market", "markets", "stocks", "shares", "economy", "economic",
+        "trade", "tariff", "tariffs", "inflation", "fed", "earnings",
+        "company", "billion", "investor", "investors", "chipmaker", "chipmakers",
+        "startup", "ipo", "layoffs", "jobs", "prices",
+    ]),
+    ("Climate & Weather", [
+        "climate", "heat", "heatwave", "wildfire", "wildfires", "weather",
+        "flood", "flooding", "storm", "hurricane", "drought", "temperature",
+        "temperatures", "emissions", "carbon", "heat wave",
+    ]),
+    ("Disasters & Accidents", [
+        "earthquake", "earthquakes", "crash", "crashes", "plane", "collapse",
+        "rescue", "rescued", "explosion", "derail", "capsize", "killed", "dead",
+    ]),
+    ("Science & Health", [
+        "health", "covid", "vaccine", "virus", "disease", "study", "scientists",
+        "researchers", "medical", "hospital", "cancer", "nasa", "space",
+        "spacecraft", "outbreak",
+    ]),
+    ("Technology", [
+        "ai", "artificial intelligence", "openai", "google", "apple",
+        "microsoft", "software", "cyber", "chip", "chips", "robot", "tech",
+        "algorithm", "app", "internet",
+    ]),
+    ("Sports", [
+        "world cup", "match", "player", "players", "team", "league", "nfl",
+        "nba", "mlb", "olympics", "tournament", "championship", "knockout",
+        "goal", "coach", "soccer",
+    ]),
+    ("Arts & Culture", [
+        "film", "movie", "music", "album", "artist", "book", "novel",
+        "celebrity", "festival", "museum", "fashion", "actor", "actress",
+    ]),
+]
+DEFAULT_THEME = "More News"
+_THEME_PATTERNS = [
+    (name, re.compile(r"\b(" + "|".join(re.escape(k) for k in kws) + r")\b", re.I))
+    for name, kws in THEMES
+]
+
+
+def assign_theme(title: str) -> str:
+    """Bucket a story by the first theme whose keyword appears in its headline."""
+    for name, pattern in _THEME_PATTERNS:
+        if pattern.search(title or ""):
+            return name
+    return DEFAULT_THEME
+
+
+def group_by_theme(articles: list[dict]) -> list[dict]:
+    """Regroup a flat list of articles (each tagged with 'source') into themed
+    sections, preserving THEMES order and dropping empty themes."""
+    buckets: dict[str, list[dict]] = {}
+    for art in articles:
+        buckets.setdefault(assign_theme(art["title"]), []).append(art)
+
+    ordered_names = [name for name, _ in THEMES] + [DEFAULT_THEME]
+    sections = []
+    for name in ordered_names:
+        if buckets.get(name):
+            sections.append({"name": name, "articles": buckets[name]})
+    return sections
+
+
 # ──────────────────────────────── main ─────────────────────────────────────
 
 def main() -> int:
@@ -471,7 +559,9 @@ def main() -> int:
     cutoff = dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=lookback)
     max_total = digest_cfg.get("max_total_articles", 60)
 
-    sections: list[dict] = []
+    # Collect every article into one flat list (tagged with its source), then
+    # regroup by theme below — so sections are themes, not sources.
+    all_articles: list[dict] = []
     total = 0
     for src in cfg.get("sources", []):
         name = src.get("name", "Source")
@@ -484,7 +574,6 @@ def main() -> int:
             log(f"  ! skipping {name}: needs either 'feed' or 'index'+'link_selector'")
             continue
 
-        articles: list[dict] = []
         for it in items:
             if total >= max_total:
                 break
@@ -494,15 +583,17 @@ def main() -> int:
                 log("    (no extractable content, skipped)")
                 continue
             it["content"] = content
-            articles.append(it)
+            it["source"] = name
+            all_articles.append(it)
             total += 1
 
-        if articles:
-            sections.append({"name": name, "articles": articles})
-
-    if not sections:
+    if not all_articles:
         log("no articles collected — nothing to send")
         return 1
+
+    sections = group_by_theme(all_articles)
+    log(f"grouped {len(all_articles)} articles into {len(sections)} themes: "
+        + ", ".join(f"{s['name']} ({len(s['articles'])})" for s in sections))
 
     build_epub(digest_cfg, sections, args.out)
 

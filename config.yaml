@@ -28,7 +28,10 @@
 # ─────────────────────────────────────────────────────────────────────────────
 
 digest:
-  title: "Morning Digest"
+  # Constant title so each morning's issue REPLACES the previous one in your
+  # Kindle library (Amazon has no API to delete personal docs; in-place update
+  # is the only auto-cleanup). The date is shown on the cover page instead.
+  title: "News Digest"
   # Only include articles published within this many hours of run time.
   # 26h gives a little overlap so nothing is missed on a daily run.
   lookback_hours: 26
@@ -54,7 +57,7 @@ sources:
 
   # The Guardian — official RSS, full article text, international coverage.
   # (Stands in for Reuters, which has no free full-text path for automation.)
-  - name: The Guardian (World)
+  - name: The Guardian
     feed: https://www.theguardian.com/world/rss
     max_articles: 8
 
