@@ -28,9 +28,11 @@
 # ─────────────────────────────────────────────────────────────────────────────
 
 digest:
-  # Constant title so each morning's issue REPLACES the previous one in your
-  # Kindle library (Amazon has no API to delete personal docs; in-place update
-  # is the only auto-cleanup). The date is shown on the cover page instead.
+  # The digest is delivered as "<title> - MM/DD/YYYY" (the date is appended at
+  # send time). Kindle shows the attachment filename as the document title, so
+  # each issue is dated and labeled. Trade-off: because the name changes daily,
+  # issues do NOT auto-replace and will accumulate — delete old ones manually.
+  # For a single self-replacing entry instead, drop the date in send_to_kindle().
   title: "News Digest"
   # Only include articles published within this many hours of run time.
   # 26h gives a little overlap so nothing is missed on a daily run.

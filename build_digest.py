@@ -351,12 +351,14 @@ def build_epub(digest_cfg: dict, sections: list[dict], out_path: str) -> None:
     base_title = digest_cfg.get("title", "News Digest")
 
     book = epub.EpubBook()
-    # Stable identifier + constant title so each morning's delivery is treated as
-    # an UPDATE to the same Kindle document (replacing yesterday's) instead of a
-    # brand-new library entry. The date is shown on the cover page inside, so you
-    # can still tell which issue you're reading. This keeps the Library tidy.
+    # Title carries the date (e.g. "News Digest - 06/29/2026") per request, so
+    # each issue is clearly labeled. NOTE: because the name changes daily, Kindle
+    # treats each as a NEW document rather than replacing yesterday's — issues
+    # accumulate and are deleted manually. (The identifier stays constant as a
+    # best-effort hedge in case Amazon ever dedupes on it.) To go back to a single
+    # self-replacing entry, make the title constant in config + send_to_kindle.
     book.set_identifier("kindle-morning-digest")
-    book.set_title(base_title)
+    book.set_title(f"{base_title} - {date_mdy}")
     book.set_language("en")
     book.add_author("Kindle Digest")
 
@@ -437,17 +439,21 @@ def send_to_kindle(epub_path: str, digest_title: str) -> None:
     kindle = os.environ["KINDLE_EMAIL"]
 
     msg = EmailMessage()
-    msg["Subject"] = digest_title  # Kindle uses subject as the document title
+    msg["Subject"] = digest_title
     msg["From"] = mail_from
     msg["To"] = kindle
-    msg.set_content("Your morning digest is attached.")
+    msg.set_content("Your news digest is attached.")
 
+    # Kindle displays the ATTACHMENT FILENAME as the document title, so name the
+    # file after the digest. Slashes are illegal in filenames, so MM/DD/YYYY in
+    # the title becomes MM-DD-YYYY here.
+    attach_name = digest_title.replace("/", "-") + ".epub"
     with open(epub_path, "rb") as f:
         msg.add_attachment(
             f.read(),
             maintype="application",
             subtype="epub+zip",
-            filename=os.path.basename(epub_path),
+            filename=attach_name,
         )
 
     with smtplib.SMTP(host, port) as server:
@@ -598,9 +604,12 @@ def main() -> int:
     build_epub(digest_cfg, sections, args.out)
 
     if args.send:
-        # Constant subject (and the constant filename used in send_to_kindle)
-        # so Send-to-Kindle updates the same document instead of piling up.
-        send_to_kindle(args.out, digest_cfg.get("title", "Morning Digest"))
+        # Dated document name, e.g. "News Digest - 06/29/2026", per request. The
+        # attachment is named after this, which is what Kindle shows as the title.
+        tz = ZoneInfo(digest_cfg.get("timezone", "UTC"))
+        date_mdy = dt.datetime.now(tz).strftime("%m/%d/%Y")
+        title = digest_cfg.get("title", "News Digest")
+        send_to_kindle(args.out, f"{title} - {date_mdy}")
 
     return 0
 
