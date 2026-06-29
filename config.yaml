@@ -1,0 +1,60 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Kindle Morning Digest — configuration
+#
+# Add a site by appending an entry under `sources:`. Two kinds of source:
+#
+#   1) An RSS / Atom feed (most sites have one — try /feed, /rss, /atom.xml):
+#        - name: The Verge
+#          feed: https://www.theverge.com/rss/index.xml
+#
+#   2) A page with no feed — we scrape links off an index page:
+#        - name: Some Blog
+#          index: https://example.com/articles
+#          link_selector: "h2.post-title a"   # CSS selector for article links
+#
+# Optional per-source keys:
+#   max_articles: 10           # cap articles pulled from this source
+#   next_page_selector: "a.next"   # CSS selector for the "next page" link of a
+#                                  # multi-page article; we follow & merge them.
+#   include: ["keyword", ...]  # only keep articles whose title contains one of these
+#   exclude: ["sponsored", ...] # drop articles whose title contains one of these
+#   archive: fallback          # paywall handling via archive.today:
+#                              #   fallback (default) = direct first, use the
+#                              #     archived copy only if the article looks
+#                              #     truncated (< min_content_chars).
+#                              #   always = go straight to archive.today (for
+#                              #     sites you know are always paywalled, e.g. WSJ).
+#                              #   never  = never use the archive for this source.
+# ─────────────────────────────────────────────────────────────────────────────
+
+digest:
+  title: "Morning Digest"
+  # Only include articles published within this many hours of run time.
+  # 26h gives a little overlap so nothing is missed on a daily run.
+  lookback_hours: 26
+  # Hard cap across the whole digest, newest first (safety valve).
+  max_total_articles: 60
+  timezone: "America/New_York"
+  # Articles whose extracted text is shorter than this are treated as
+  # truncated/paywalled and retried via archive.today (see `archive:` per source).
+  min_content_chars: 600
+
+sources:
+  # NPR — free, full text on-site, so we fetch directly (no archive needed).
+  - name: NPR News
+    feed: https://feeds.npr.org/1001/rss.xml
+    max_articles: 12
+
+  # The New Yorker — paywalled, so route every article through archive.today.
+  # /feed/everything is broad (also crosswords/podcasts); narrow to /feed/news
+  # or /feed/magazine later if you want fewer, more focused pieces.
+  - name: The New Yorker
+    feed: https://www.newyorker.com/feed/everything
+    archive: always
+    max_articles: 8
+
+  # The New York Times — paywalled, route through archive.today.
+  - name: The New York Times
+    feed: https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml
+    archive: always
+    max_articles: 10

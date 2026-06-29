@@ -1,0 +1,9 @@
+feedparser==6.0.11
+requests==2.32.3
+trafilatura==1.12.2
+lxml==5.3.0
+lxml_html_clean==0.4.1
+cssselect==1.2.0
+EbookLib==0.18
+PyYAML==6.0.2
+python-dateutil==2.9.0.post0

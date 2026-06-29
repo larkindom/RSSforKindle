@@ -1,0 +1,42 @@
+name: Morning Kindle Digest
+
+on:
+  schedule:
+    # GitHub cron is UTC. 11:00 UTC = 7:00 AM America/New_York (EDT).
+    # Adjust the hour if you want a different delivery time or are on EST.
+    - cron: "0 11 * * *"
+  workflow_dispatch: {}   # lets you run it manually from the Actions tab
+
+jobs:
+  build-and-send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Build and send digest
+        env:
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          MAIL_FROM: ${{ secrets.MAIL_FROM }}
+          KINDLE_EMAIL: ${{ secrets.KINDLE_EMAIL }}
+        run: python build_digest.py --config config.yaml --out digest.epub --send
+
+      - name: Upload digest as artifact (backup / debugging)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: digest-epub
+          path: digest.epub
+          if-no-files-found: ignore
+          retention-days: 7
