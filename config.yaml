@@ -52,10 +52,13 @@ sources:
     feed: https://feeds.npr.org/1001/rss.xml
     max_articles: 12
 
-  # Reuters slot: Reuters has no free full-text path for automation (no RSS +
-  # bot-blocks scrapers). The Guardian is the closest free substitute — official
-  # RSS, full article text, international wire-style coverage. Uncomment to
-  # enable it (or swap the feed for BBC: https://feeds.bbci.co.uk/news/world/rss.xml).
-  # - name: The Guardian (World)
-  #   feed: https://www.theguardian.com/world/rss
-  #   max_articles: 10
+  # The Guardian — official RSS, full article text, international coverage.
+  # (Stands in for Reuters, which has no free full-text path for automation.)
+  - name: The Guardian (World)
+    feed: https://www.theguardian.com/world/rss
+    max_articles: 8
+
+  # BBC News — official RSS, full text, concise international reporting.
+  - name: BBC World
+    feed: https://feeds.bbci.co.uk/news/world/rss.xml
+    max_articles: 8
