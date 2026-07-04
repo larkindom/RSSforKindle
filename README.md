@@ -1,5 +1,9 @@
 # Kindle Morning Digest
 
+[![License: MIT](https://img.shields.io/github/license/larkindom/RSSforKindle)](LICENSE)
+[![Python 3.12](https://img.shields.io/badge/python-3.12-blue)](requirements.txt)
+[![Runs on GitHub Actions](https://img.shields.io/badge/runs%20on-GitHub%20Actions-2088FF?logo=github-actions&logoColor=white)](.github/workflows/digest.yml)
+
 Pulls articles from RSS feeds (and non-RSS pages via CSS selectors), extracts the
 full article text, merges multi-page articles into one, and bundles everything
 into a single EPUB "periodical" that's emailed to your Kindle every morning.
